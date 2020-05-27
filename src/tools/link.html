@@ -1,0 +1,48 @@
+---
+layout: bootstrap
+title: Make QRCode
+ko.title: QR코드 만들기
+slug: link.html
+---
+
+<script>
+    $(function() {
+        var $link = $('#link');
+        var $open = $('#open');
+        var $qrcode = $('#qrcode');
+
+        $link.on('change keyup', function() {
+            var link = $link.val();
+            $open.attr('href', link);
+
+            var typeNumber = 4;
+            var errorCorrectionLevel = 'L';
+            var qr = qrcode(typeNumber, errorCorrectionLevel);
+            qr.addData(link);
+            qr.make();
+            $qrcode.html([qr.createImgTag(4,  4, link)]);
+
+            localStorage.setItem('link', link);
+        })
+        var link = localStorage.getItem('link');
+        if (link) {
+            $link.val(link).change();
+        }
+    });
+</script>
+<div class="card">
+    <div class="card-header">
+        <div class="card-title">Link</div>
+    </div>
+    <div class="card-body">
+        <div class="card-text">
+            <div class="form-group">
+                <input type="link" class="form-control" id="link" placeholder="Enter Link">
+            </div>
+        </div>
+        <a href="#" target="_blank" id="open" class="btn btn-primary">Open Link</a>
+    </div>
+    <div class="card-footer">
+        <p id="qrcode"></p>
+    </div>
+</div>

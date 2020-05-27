@@ -1,5 +1,127 @@
 /*! purgecss start ignore */
 @tailwind base;
+
+@import url('https://fonts.googleapis.com/css2?family=Gothic+A1:wght@400;500;600;700&display=swap');
+
 @tailwind components;
 /*! purgecss end ignore */
 @tailwind utilities;
+
+
+
+html {
+    @apply font-body;
+    font-size: 16px;
+}
+
+
+.blog-post-content {
+    a {
+        @apply text-blue-800;
+    }
+} 
+
+/* purgecss start ignore */
+/* Markdown Styles */
+/* Global */
+.markdown {
+  @apply leading-relaxed text-sm;
+}
+/* Headers */
+.markdown h1,
+.markdown h2 {
+  @apply text-lg mt-6 mb-2 font-medium text-gray-800;
+}
+.markdown h3,
+.markdown h4,
+.markdown h5,
+.markdown h6 {
+  @apply text-base mt-3 mb-2 font-medium text-gray-800;
+}
+/* Links */
+.markdown a {
+  @apply text-blue-600;
+}
+.markdown a:hover {
+  @apply underline;
+}
+/* Paragraph */
+.markdown p {
+  @apply mb-1 px-2;
+}
+/* Lists */
+.markdown ul,
+.markdown ol {
+  @apply mb-4 ml-8;
+}
+.markdown li > p,
+.markdown li > ul,
+.markdown li > ol {
+  @apply mb-0;
+}
+.markdown ol {
+  @apply list-decimal;
+}
+.markdown ul {
+  @apply list-disc;
+}
+/* Blockquotes */
+.markdown blockquote {
+  @apply p-0 p-2 mx-6 bg-gray-100 mb-4 border-l-4 border-gray-400 italic;
+}
+.markdown blockquote > p {
+  @apply mb-0;
+}
+/* Tables */
+.markdown td,
+.markdown th {
+  @apply px-2 py-1 border border-gray-400;
+}
+.markdown tr:nth-child(odd) {
+  @apply bg-gray-100;
+}
+.markdown table {
+  @apply mb-6;
+}
+
+
+
+.gatsby-highlight-code-line {
+  background-color: #feb;
+  display: block;
+  margin-right: -1em;
+  margin-left: -1em;
+  padding-right: 1em;
+  padding-left: 0.75em;
+  border-left: 0.25em solid #f99;
+}
+
+/**
+ * Add back the container background-color, border-radius, padding, margin
+ * and overflow that we removed from <pre>.
+ */
+.gatsby-highlight {
+  background-color: white;
+  border-radius: 0.3em;
+  margin: 0.5em 0;
+  padding: 1em;
+  overflow: auto;
+}
+
+/**
+ * Remove the default PrismJS theme background-color, border-radius, margin,
+ * padding and overflow.
+ * 1. Make the element just wide enough to fit its content.
+ * 2. Always fill the visible space in .gatsby-highlight.
+ * 3. Adjust the position of the line numbers
+ */
+.gatsby-highlight pre[class*="language-"] {
+  background-color: transparent;
+  margin: 0;
+  padding: 0;
+  overflow: initial;
+  float: left; /* 1 */
+  min-width: 100%; /* 2 */
+}
+
+/* purgecss end ignore */

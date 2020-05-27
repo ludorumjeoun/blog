@@ -1,0 +1,496 @@
+---
+layout: bootstrap
+title: Group Random Shuffle
+description: "자리 바꾸기 같은 것에 무료로 이더리움(Ethereum)을 사용해보세요."
+slug: shuffle.html
+---
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.1/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/ethereum/web3.js@1.0.0-beta.34/dist/web3.min.js"></script>
+<script>
+    $(function () {
+        moment.defaultFormat = 'YYYY-MM-DD HH:mm:ss'
+
+        var web3 = new Web3('https://mainnet.infura.io/');
+        var $list = $('#list');
+        var $link = $('#link');
+        var $draw_date = $('#draw_date');
+        var $draw_time = $('#draw_time');
+        var $draw_from_now = $('#draw_from_now');
+        var $open = $('#open');
+        var $qrcode = $('#qrcode');
+
+
+        const chain = {};
+        async function chainState() {
+            const latest = await web3.eth.getBlockNumber();
+            const response = await new Promise(function (resolve, reject) {
+                async function get() {
+                    const block = await getBlock(latest)
+                    if (block) {
+                        resolve(block);
+                    } else {
+                        setTimeout(get, 1000);
+                    }
+                }
+                get();
+            });
+            chain.number = response.number
+            chain.timestamp = response.timestamp
+            console.log(chain.number, moment(chain.timestamp, 'X').diff(moment(), 'seconds'));
+            refresh();
+        }
+        chainState();
+        async function getBlock(number, count = 0) {
+            const key = 'eth_block_' + number;
+            try {
+                const cache = sessionStorage.getItem(key);
+                if (cache) {
+                    try {
+                        const block = JSON.parse(cache);
+                        if (block.timestamp) {
+                            return block;
+                        }
+                    } catch (e) {
+
+                    }
+                }
+            } catch (e) {
+                sessionStorage.clear();
+            }
+            const block = await web3.eth.getBlock(number);
+            if (block) {
+                delete block.logsBloom
+                delete block.transactions
+                sessionStorage.setItem(key, JSON.stringify(block));
+                return block;
+            }
+        }
+        async function guessBlockTime(block) {
+            const jump = 100;
+            const oldBlock = await getBlock(block.number - jump);
+            const avgTime = (block.timestamp - oldBlock.timestamp) / (jump + 1);
+            return avgTime;
+        }
+        async function guess(target_time, block, ignoreSearch, precedents = [], blockTime = null) {
+            console.log('guess', target_time.format(), moment(block.timestamp, 'X').format(), precedents.length);
+            const diff = target_time.diff(block.timestamp * 1000, 'seconds');
+            if (precedents.length > 100 || ignoreSearch && ignoreSearch()) {
+                return;
+            }
+            let guess_block_time = blockTime || await guessBlockTime(block);
+            const guess_block_number = block.number + Math.ceil(diff / guess_block_time);
+            const guess_block = await getBlock(guess_block_number);
+            if (!guess_block) {
+                return;
+            }
+            if (precedents.indexOf(guess_block_number) > -1) {
+                return guess_block;
+            }
+            const result_diff = target_time.diff(guess_block.timestamp * 1000, 'seconds');
+            if (Math.abs(result_diff) > guess_block_time) {
+                if (precedents.length > 2) {
+                    guess_block_time = null;
+                }
+                precedents.push(guess_block.number);
+                return await guess(target_time, guess_block, ignoreSearch, precedents, guess_block_time);
+            }
+            const candidates = await Promise.all([
+                getBlock(guess_block.number - 1),
+                getBlock(guess_block.number),
+                getBlock(guess_block.number + 1)
+            ]);
+            let count = 1;
+            let current = guess_block.number;
+            while (current) {
+                const prev = await getBlock(current - 1);
+                const prev_diff = target_time.diff(prev.timestamp * 1000, 'seconds');
+                if (prev_diff <= 0) {
+                    current = current - 1;
+                    continue;
+                }
+                const candidate = await getBlock(current);
+                if (!candidate) {
+                    return;
+                }
+                const candidate_diff = target_time.diff(candidate.timestamp * 1000, 'seconds');
+                console.log('guess', target_time.format(), moment(candidate.timestamp, 'X').format(), precedents.length, count);
+                if (prev_diff > 0 && candidate_diff <= 0) {
+                    return candidate;
+                }
+                current = current + 1;
+                count++;
+            }
+        }
+
+        $('.container').on('change keyup click', function () {
+            refresh();
+        });
+
+        const input = location.search.split(/\?|\&/)
+            .filter(s => s)
+            .map(s => s.split(/=/))
+            .reduce((m, [k, v]) => { m[k] = v; return m }, {})
+        $link.val('');
+        $list.val(input.d ? web3.utils.toUtf8(atob(decodeURIComponent(input.d))) : 'A\nB');
+
+        const action = input.a;
+        if (action == 'result') {
+            $list.prop('readonly', 'readonly');
+            $draw_date.prop('readonly', 'readonly');
+            $draw_time.prop('readonly', 'readonly');
+            $('#list').attr('rows', $('#list').val().split('\n').length);
+            $('.result-group').show();
+        }
+
+
+
+
+        var default_draw = input.t ? moment(input.t, 'X') : moment().add(5, 'minute');
+        $draw_date.val(default_draw.format('YYYY-MM-DD'));
+        $draw_time.val(default_draw.format('HH:mm:00'));
+        refresh();
+
+        var laterTimer = null;
+        function refreshLater(seconds) {
+            console.log(seconds);
+            if (laterTimer) {
+                clearTimeout(laterTimer);
+            }
+            laterTimer = setTimeout(async function () {
+                await chainState();
+                refresh();
+                laterTimer = null;
+            }, seconds * 1000);
+        }
+
+        var effectTimer = null;
+        function effect(hash, list) {
+            if (action !== 'result') {
+                return;
+            }
+            if (effectTimer) {
+                clearInterval(effectTimer);
+            }
+            let old_random = 0;
+            effectTimer = setInterval(async function () {
+                if ($('#draw_block').data('hash') != hash) {
+                    $('#result').val($('#result').data('result'));
+                    return;
+                }
+                let random = old_random;
+                while (old_random == random) {
+                    random = Math.floor(Math.random() * (list.length))
+                }
+                old_random = random;
+                $('#result').val(list[random]);
+            }, 400);
+        }
+        function xoshiro128ssInt(a, b, c, d) {
+            return function () {
+                var t = b << 9, r = a * 5; r = (r << 7 | r >>> 25) * 9;
+                c ^= a; d ^= b;
+                b ^= c; a ^= d; c ^= t;
+                d = d << 11 | d >>> 21;
+                return (r >>> 0);
+            }
+        }
+
+        async function refresh() {
+            var time = moment($draw_date.val() + ' ' + $draw_time.val());
+            var fromNow = time.fromNow();
+            $draw_from_now.val(fromNow);
+
+            const list = $list.val().split(/\n/).filter(a => a);
+            const link = makeLink(time, list);
+
+            var fromNowSecond = time.diff(moment(), 'seconds');
+            effect(null, list);
+            $('#result_label').text('Determined ' + fromNow + '(after ' + time.format() + ')');
+            const hash = web3.utils.sha3(JSON.stringify({
+                list, time
+            }));
+            $('#input_id_image').attr('src', 'https://robohash.org/' + hash + '?set=set4');
+
+            if (fromNowSecond > 0) {
+                $('#draw_block').val('Not yet');
+                return refreshLater(Math.min(fromNowSecond, 30));
+            }
+
+            if (chain.timestamp) {
+                const hash_old = $('#draw_block').data('hash');
+                if (hash == hash_old) {
+                    return;
+                }
+                $('#draw_block').val('Wait..');
+                $('#result').val('');
+                $('#draw_block').data('hash', hash);
+                const block = await guess(time, chain, function () {
+                    const now = $('#draw_block').data('hash');
+                    if (now != hash) {
+                        return true;
+                    }
+                });
+                if (block) {
+                    $('#draw_block').val(block.number)
+                    const lastBytes = web3.utils.hexToBytes(block.hash).pop();
+                    $('#result').val(list[lastBytes % list.length]);
+                    $('#result').data('result', list[lastBytes % list.length]);
+                    if ($('#draw_block').data('notify') == true) {
+                        var notification = new Notification('Determined Result!', {
+                            body: "Check it!",
+                        });
+                        notification.onclick = function () {
+                            window.open($('#link').val());
+                        };
+                    }
+                } else {
+                    $('#draw_block').data('hash', null);
+                    $('#draw_block').val('Not yet');
+                    return refreshLater(Math.max(fromNowSecond, 10));
+                }
+            }
+        }
+
+        var makeLinkTimer = null
+        function makeLink(time, list) {
+            const d = btoa(web3.utils.fromUtf8(list.join('\n')));
+            const t = time.format('X');
+            const result_link = location.href.split('?')[0] + '?' + $.param({ d, t, a: 'result' });
+            if ($link.val() == result_link) {
+                return result_link;
+            }
+            if (action == 'result') {
+                window.history.replaceState(null, document.title, '?' + $.param({ d, t, a: 'result' }));
+            } else {
+                window.history.replaceState(null, document.title, '?' + $.param({ d, t }));
+            }
+            $link.val(result_link);
+
+            if (makeLinkTimer) {
+                clearTimeout(makeLinkTimer);
+            }
+            makeLinkTimer = setTimeout(function () {
+                var typeNumber = 0;
+                var errorCorrectionLevel = 'L';
+                var qr = qrcode(typeNumber, errorCorrectionLevel);
+                qr.addData(result_link);
+                qr.make();
+                $qrcode.html([qr.createImgTag(4, 4, result_link)]);
+            }, 300);
+            return result_link;
+        }
+        if (!Notification) {
+            $('#notify_me').hide();
+        } else {
+            if (Notification.permission == "granted") {
+                $('#draw_block').data('notify', true);
+                $('#notify_me').hide();
+            }
+        }
+    });
+
+    function createLink() {
+        var target = $('#link')[0];
+        target.select();
+
+        /* Copy the text inside the text field */
+        document.execCommand("copy");
+
+        /* Alert the copied text */
+        alert("Copied the text: " + target.value);
+        location.href = target.value;
+    }
+
+    function notifyMe() {
+        if (!Notification) {
+            alert('Desktop notifications not available in your browser. Try Chromium.');
+            return;
+        }
+        $('#draw_block').data('notify', true);
+        if (Notification.permission !== "granted") {
+            Notification.requestPermission();
+        }
+        $('#notify_me').hide();
+    }
+
+    function buildDice(number) {
+        var $dice = $("<div/>", {
+            "class": `dice-face-${number}`
+        })
+        switch (number) {
+            case 1:
+                $dice.html('<span class="pip"></span>');
+                break;
+            case 2:
+                $dice.html('<span class="pip"></span><span class="pip"></span>');
+                break;
+            case 3:
+                $dice.html('<span class="pip"></span><span class="pip"></span><span class="pip"></span>');
+                break;
+            case 4:
+                $dice.html('<div class="column"><span class="pip"></span><span class="pip"></span></div><div class="column"><span class="pip"></span><span class="pip"></span></div>');
+                break;
+            case 5:
+                $dice.html('<div class="column"><span class="pip"></span><span class="pip"></span></div><div class="column"><span class="pip"></span></div><div class="column"><span class="pip"></span><span class="pip"></span></div>');
+                break;
+            case 6:
+                $dice.html('<div class="column"><span class= "pip" ></span ><span class="pip"></span><span class="pip"></span></div ><div class="column"><span class="pip"></span><span class="pip"></span><span class="pip"></span></div>');
+                break;
+        }
+        return $dice;
+    }
+</script>
+<style>
+    .dice-face-1 {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .dice-face-2 {
+        display: flex;
+        justify-content: space-between;
+    }
+
+    .dice-face-2 .pip:nth-of-type(2) {
+        align-self: flex-end;
+    }
+
+    .dice-face-3 {
+        display: flex;
+        justify-content: space-between;
+    }
+
+    .dice-face-3 .pip:nth-of-type(2) {
+        align-self: center;
+    }
+
+    .dice-face-3 .pip:nth-of-type(3) {
+        align-self: flex-end;
+    }
+
+    .dice-face-4,
+    .dice-face-6 {
+        display: flex;
+        justify-content: space-between;
+    }
+
+    .dice-face-4 .column,
+    .dice-face-6 .column {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+
+    .dice-face-5 {
+        display: flex;
+        justify-content: space-between;
+    }
+
+    .dice-face-5 .column {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+
+    .dice-face-5 .column:nth-of-type(2) {
+        justify-content: center;
+    }
+
+    /* OTHER STYLES */
+    [class$="face"] {
+        margin: 4px;
+        padding: 4px;
+
+        background-color: #e7e7e7;
+        width: 30px;
+        height: 30px;
+        object-fit: contain;
+
+        box-shadow:
+            inset 0 2px white,
+            inset 0 -2px #bbb,
+            inset 2px 0 #d7d7d7,
+            inset -2px 0 #d7d7d7;
+
+        border-radius: 10%;
+    }
+
+    .pip {
+        display: block;
+        width: 6px;
+        height: 6px;
+        border-radius: 20%;
+        margin: 1px;
+
+        background-color: #333;
+        box-shadow: inset 0 1px #111, inset 0 -1px #555;
+    }
+</style>
+
+<div class="card">
+    <div class="card-header">
+        <div class="card-title">Group Random Shuffle</div>
+    </div>
+    <div class="card-body">
+        <div class="card-text">
+            <div class="form-group result-group" style="display:none;">
+                <label for="">Result <span id="result_label"></span></label>
+                <input type="text" class="form-control" id="result" placeholder="Result" readonly
+                    style="font-size: 2rem;height: 4rem;">
+            </div>
+            <div class="row">
+                <div class="form-group col-lg-9">
+                    <label for="">Numbers In Groups</label>
+                    <textarea class="form-control" id="list" style="resize:none;" rows="6"></textarea>
+                </div>
+                <div class="form-group col-lg-3">
+                    <label for="">Identifier Image</label>
+                    <div>
+                        <img id="input_id_image" src="https://robohash.org/default.png?set=set4"
+                            style="width:80px; height:80px;">
+                    </div>
+                    <div id="input_id_dice"></div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="form-group col-md-6">
+                    <label for="">Draw Date</label>
+                    <input type="date" class="form-control" id="draw_date">
+                </div>
+                <div class="form-group col-md-6">
+                    <label for="">Draw Time</label>
+                    <input type="time" class="form-control" id="draw_time">
+                </div>
+                <div class="form-group col-md-6">
+                    <label for="">From now</label>
+                    <input type="text" class="form-control" id="draw_from_now" readonly>
+                </div>
+                <div class="form-group col-md-6">
+                    <label for="">Discovered</label>
+                    <input type="text" class="form-control" id="draw_block" readonly>
+                </div>
+            </div>
+            <a href="javascript:createLink(this);" class="btn btn-success">Copy Link</a>
+            <a href="?" class="btn btn-primary">Create New</a>
+            <a href="javascript:notifyMe(this)" id="notify_me" class="btn btn-info">Notify Me</a>
+        </div>
+    </div>
+    <div class="card-footer">
+        <div class="form-group">
+            <input type="link" class="form-control" id="link" placeholder="Link" readonly>
+        </div>
+        <div class="row">
+            <div class="col-lg-4">
+                <p id="qrcode"></p>
+            </div>
+            <div class="col-lg-8">
+                <h5>Shuffle tool powered by Ethereum blockchain.</h5>
+                <ul>
+                    <li>Shuffle Position.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,563 @@
+---
+layout: bootstrap
+title: Board-Game Streams Number Drawer
+description: "보드게임  Streams를 즐기는 것에 무료로 스텔라 루멘(Stellar Lumens)을 사용해보세요."
+slug: streams.html
+---
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.1/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/stellar-sdk/0.15.3/stellar-sdk.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/1.18.0/TweenMax.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lettering.js/0.7.0/jquery.lettering.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/ethereum/web3.js@1.0.0-beta.34/dist/web3.min.js"></script>
+<script>
+    $(function () {
+        moment.defaultFormat = 'YYYY-MM-DD HH:mm:ss'
+
+        const server = new StellarSdk.Server('https://horizon.stellar.org/');
+        const serverOps = new StellarSdk.Server('https://horizon-mon.stellar-ops.com/');
+        var $list = $('#list');
+        var $link = $('#link');
+        var $open = $('#open');
+        var $qrcode = $('#qrcode');
+        const input = location.search.split(/\?|\&/)
+            .filter(s => s)
+            .map(s => s.split(/=/))
+            .reduce((m, [k, v]) => { m[k] = v; return m }, {})
+
+        const game = {};
+        window.game = game;
+        async function getLedger(number) {
+            async function getFromCahceOrNetwork() {
+                const key = 'stellar_ledger_' + number;
+                try {
+                    const cache = sessionStorage.getItem(key);
+                    if (cache) {
+                        try {
+                            const ledger = JSON.parse(cache);
+                            if (ledger.closed_at) {
+                                return ledger;
+                            }
+                        } catch (e) {
+
+                        }
+                    }
+                } catch (e) {
+                    sessionStorage.clear();
+                }
+                try {
+                    const record = await (async () => {
+                        try {
+                            return await server.ledgers().ledger(number).call();
+                        } catch (e) {
+                            if (e.message == "Not Found") {
+                                return await serverOps.ledgers().ledger(number).call();
+                            }
+                        }
+                    })();
+                    if (record) {
+                        const ledger  =  {
+                            prev_hash: record.prev_hash,
+                            hash: record.hash,
+                            sequence: record.sequence,
+                            closed_at: record.closed_at,
+                        }
+                        sessionStorage.setItem(key, JSON.stringify(ledger));
+                        return ledger;
+                    }
+                } catch (e) {
+                    if (e.message == "Not Found") {
+                    } else  {
+                        console.error(e);
+                    }
+
+                }
+            }
+            const ledger = await getFromCahceOrNetwork();
+            if (ledger && ledger.sequence > game.head_ledger_sequence) {
+                game.head_ledger_time = ledger.closed_at;
+                game.head_ledger_sequence = ledger.sequence;
+            }
+            return ledger;
+        }
+        async function getLastLedger() {
+            const ledgers = await serverOps.ledgers().order("desc").limit(1).call();
+            const last = ledgers.records[0]
+            const key = 'stellar_ledger_' + last.sequence;
+            const ledger = {
+                prev_hash: last.prev_hash,
+                hash: last.hash,
+                sequence: last.sequence,
+                closed_at: last.closed_at,
+            };
+            sessionStorage.setItem(key, JSON.stringify(ledger));
+            if (ledger && ledger.sequence > game.head_ledger_sequence) {
+                game.head_ledger_time = ledger.closed_at;
+                game.head_ledger_sequence = ledger.sequence;
+            }
+            return ledger;
+        }
+        async function draw() {
+            console.log(game);
+            const inPocket = [];
+            const outPocket = [];
+            for (var i = 1; i <= 10; i++) {
+                inPocket.push(i);
+            }
+            for (var i = 11; i <= 19; i++) {
+                inPocket.push(i);
+                inPocket.push(i);
+            }
+            for (var i = 20; i <= 30; i++) {
+                inPocket.push(i);
+            }
+            inPocket.push(0);
+            game.nextTime = null;
+            $("#next").val("Loading...");
+
+            const readyTime = 10;
+            let firstBlock = await getLedger(game.start_number);
+            let firstTime = new Date(firstBlock.closed_at).getTime() + (readyTime * 1000);
+            let lastTime = Math.min(new Date().getTime(), firstTime + (game.draw_term * 1000 * 20));
+            let currentTime = firstTime;
+            let currentBlock = firstBlock;
+            const gap =  (game.draw_term * 1000) - 1;
+            while(outPocket.length < 20 && (currentTime + gap) <= new Date().getTime()) {
+                let nextTime = currentTime + gap;
+                while(true) {
+                    const nextBlock = await getLedger(currentBlock.sequence + 1);
+                    if (nextBlock) {
+                        // 시간이 더 지나야 함
+                        if (new Date(nextBlock.closed_at).getTime() < nextTime) {
+                            currentBlock = nextBlock;
+                            continue;
+                        }
+                        // 인정
+                        // currentBlock = nextBlock;
+                        nextTime = new Date(nextBlock.closed_at).getTime();
+                        break;
+                    }
+                    break;
+                }
+                if (nextTime == currentTime + gap) {
+                    break;
+                }
+                const lastByte = Web3.utils.hexToBytes("0x"+currentBlock.hash).pop();
+                const drawNumber = inPocket.splice(lastByte % inPocket.length, 1)[0];
+                // console.log(currentBlock.sequence,
+                //     `${Math.floor((new Date().getTime() - new Date(currentBlock.closed_at).getTime())*0.001)}초 전,\t${(nextTime - currentTime) * 0.001}초 차이,\t시작한지 ${(nextTime - firstTime) * 0.001}초`,
+                //     drawNumber);
+                outPocket.push(drawNumber);
+                currentTime = nextTime;
+                console.log(outPocket.join(' '), currentTime + gap - new Date().getTime());
+                const liNumbers = outPocket.slice().reverse().map(number => {
+                    return $('<div/>', {
+                        "class": "number-card",
+                        "text": number == 0 ? "✪" : number
+                    })
+                })
+                $("#list").html(liNumbers);
+            }
+            console.log(inPocket, outPocket);
+            const liNumbers = outPocket.slice().reverse().map(number => {
+                return $('<div/>', {
+                    "class": "number-card",
+                    "text": number == 0 ? "✪" : number
+                })
+            })
+            $("#list").html(liNumbers);
+            outPocket.slice(-1).forEach(number => {
+                const old = $("#title").data("old");
+                if (old != currentTime) {
+                    if (game.unsolved && game.solvedHash != currentBlock.hash) {
+                        const unsolvedNumber = game.unsolved;
+                        const unsolvedHands = $("#hand_up .hand").filter((idx, h) => {
+                            return $(h).data('number') == undefined;
+                        })
+                        const randomIdx = window.crypto.getRandomValues(new Uint8Array(1))[0] % unsolvedHands.length;
+                        unsolvedHands[randomIdx].click();
+                    }
+                    game.unsolvedHash = currentBlock.hash;
+                    game.unsolved = number;
+                    $("#title").data("old", currentTime);
+                    $("#title .title").text(number == 0 ? "✪" : number);
+                    $("#title").removeClass("draw");
+                }
+            })
+            game.done = outPocket.length >= 20;
+            if (!game.done) {
+                game.nextTime = currentTime + gap;
+                const over = (new Date().getTime() - game.nextTime);
+                if (over > 0) {
+                    console.log(`${Math.floor(over * 0.001)}초 지났다`);
+                    setTimeout(() => {
+                        draw();
+                    }, 500);
+                } else {
+                    console.log(`${Math.floor(-over * 0.001)}초 남았다`);
+                    setTimeout(() => {
+                        draw();
+                    }, (- over) + 3000);
+                }
+            }
+        }
+
+        (async function() {
+            const lastLedger = await getLastLedger();
+            game.draw_term = Number(input.t || 15);
+            game.start_number = Number(input.b || lastLedger.sequence);
+            game.head_ledger_time = lastLedger.closed_at;
+            game.head_ledger_sequence = lastLedger.sequence;
+            game.hand = [];
+            for(var i = 0; i < 20; i++) {
+                game.hand[i] = undefined;
+            }
+            try {
+                const savedHand = localStorage.getItem(`streams_${game.start_number}_${game.draw_term}`);
+                if (savedHand) {
+                    game.hand = JSON.parse(savedHand);
+                    game.solvedHash = localStorage.getItem(`streams_${game.start_number}_${game.draw_term}_hash`);
+                }
+            } catch (e) {
+
+            }
+            window.history.replaceState(null, document.title, '?' + $.param({
+                b: game.start_number,
+                t: game.draw_term,
+            }));
+            draw();
+            $("#next_label").text(` Every ${game.draw_term}s`);
+            $("#input_id_image").attr("src",  `https://robohash.org/${game.start_number}.png?set=set4`);
+            setInterval(() => {
+                if (game.nextTime) {
+                    var remainTime = Math.ceil((game.nextTime - new Date().getTime()) * 0.001);
+                    if (remainTime <= 0) {
+                        remainTime = "Draw...";
+                        $("#title").addClass("draw");
+                        $("#title .title").text("?");
+                    }
+                    $("#next").val(remainTime);
+                } else if (game.done) {
+                    if (game.score !== undefined) {
+                        return;
+                    }
+                    $("#next").val("Done");
+                    const unsolvedHandCount = $(game.hand).filter((idx, num) => {
+                        return num == undefined
+                    }).length;
+                    if (unsolvedHandCount == 0) {
+                        const scoreRule = [
+                            0,1,3,5,7,9,11,15,20,25,
+                            30,35,40,50,60,70,85,100,150,300
+                        ];
+                        let score = 0;
+                        let seriesCount = 0;
+                        let lastNumber = null;
+                        game.hand.forEach((num, idx) => {
+                            const releaseScore = scoreRule[seriesCount];
+                            if (lastNumber === null) {
+                                lastNumber = num;
+                                seriesCount = 0;
+                            } else {
+                                if (num === 0) {
+                                    seriesCount += 1;
+                                } else if (lastNumber <= num) {
+                                    seriesCount += 1;
+                                } else {
+                                    seriesCount = 0;
+                                    score += releaseScore;
+                                }
+                                lastNumber = num;
+                            }
+                            var $last = $($("#hand_up .hand")[idx - 1]);
+                            $last.append($("<div/>", {
+                                "class": "score",
+                                "text": `${releaseScore} | ${score}`
+                            }));
+                        });
+                        const releaseScore = scoreRule[seriesCount];
+                        score += releaseScore;
+                        const $last = $("#hand_up .hand:last");
+                        $last.append($("<div/>", {
+                            "class": "score",
+                            "text": `${releaseScore} |  ${score}`
+                        }));
+                        $("#next").val(`Done, Score is ${score}`);
+                        game.score = score;
+                    }
+                }
+            }, 100);
+
+            var hand_numbers = game.hand.map((number, index) => {
+                var $num = $("<div/>", {
+                    "class":"hand"
+                });
+                $num.data('index', index);
+                $num.data('number', number);
+                $num.html([$("<div/>", {
+                    "class":"idx",
+                    "text": index + 1
+                }), $("<div/>", {
+                    "class": "num",
+                    "text": number == 0 ? "✪" : number
+                })])
+                return $num;
+            })
+            $("#hand_up").html(hand_numbers);
+            $("#hand_up .hand").on('click', function() {
+                if ($(this).data('number')) {
+                    return;
+                }
+                if (game.unsolved  === 0 || game.unsolved) {
+                    const number = game.unsolved;
+                    const index = $(this).data('index');
+                    game.solvedHash = game.unsolvedHash;
+                    game.unsolved = null;
+                    game.unsolvedHash = null;
+                    game.hand[index] = number;
+                    $(this).data('number', number);
+                    $(this).find('.num').text(number == 0 ? "✪" : number);
+                    localStorage.setItem(`streams_${game.start_number}_${game.draw_term}`, JSON.stringify(game.hand));
+                    localStorage.setItem(`streams_${game.start_number}_${game.draw_term}_hash`, game.solvedHash);
+                }
+            })
+
+            var result_link = location.href.split('?')[0] + '?' + $.param({
+                b: game.start_number,
+                t: game.draw_term,
+            });
+            var typeNumber = 0;
+            var errorCorrectionLevel = 'L';
+            var qr = qrcode(typeNumber, errorCorrectionLevel);
+            qr.addData(result_link);
+            qr.make();
+            $link.val(result_link);
+            $qrcode.html([qr.createImgTag(4, 4, result_link)]);
+        })();
+    });
+
+    function createLink() {
+        var target = $('#link')[0];
+        target.select();
+
+        /* Copy the text inside the text field */
+        document.execCommand("copy");
+
+        /* Alert the copied text */
+        alert("Copied the text: " + target.value);
+        location.href = target.value;
+    }
+</script>
+<style>
+
+    #list {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        max-width: 300px;
+        width: 100%;
+    }
+    #hand_up {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        max-width: 300px;
+        width: 100%;
+    }
+    #hand_up .hand {
+        display: inline-block;
+        width: 50px;
+        height: 50px;
+        border: 1px solid black;
+        margin: 5px;
+        position: relative;
+    }
+    .hand.begin {
+        background: yellow;
+    }
+    .hand .idx  {
+        display: inline-block;
+        position: absolute;
+        left: 0;
+        top: 0;
+        border-right: 1px solid black;
+        border-bottom: 1px solid black;
+        font-size: 10px;
+        width: 16px;
+        height: 16px;
+        text-align: center;
+    }
+    .hand .num {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        top: 0;
+        margin: auto;
+        display: inline-block;
+        text-align: center;
+        width: 20px;
+        height: 20px;
+    }
+    .hand .score {
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        margin: auto;
+        display: inline-block;
+        text-align: center;
+        height: 12px;
+        font-size: 12px;
+        line-height: 12px;
+        border-top: 1px solid black;
+    }
+    .number-card:first-of-type {
+        background: yellow;
+    }
+    .number-card {
+        margin: 10px;
+        border: 1px solid black;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        box-shadow: 1px 1px black;
+    }
+    .rule-columns {
+        display: flex;
+    }
+    .rule-column {
+        display: flex; flex-direction: row; width: 50%; justify-content: space-between; flex-wrap: wrap;
+    }
+    .rule-row {
+        width: 200px;
+    }
+    .title-box {
+        display: flex;
+        height: 7rem;
+        justify-content: center;
+        align-items: center;
+    }
+    .title-box #title .title {
+        display: flex;
+        border: 1px solid black;
+        width: 4rem;
+        height: 5rem;
+        justify-content: center;
+        align-items: center;
+        box-shadow: 1px 1px black;
+    }
+    .title-box #title.draw .title {
+        animation: shake 0.82s cubic-bezier(.36,.07,.19,.97) infinite both;
+        transform: translate3d(0, 0, 0);
+    }
+    @keyframes shake {
+        10%, 90% {
+            transform: translate3d(-1px, 0, 0);
+        }
+
+        20%, 80% {
+            transform: translate3d(2px, 0, 0);
+        }
+
+        30%, 50%, 70% {
+            transform: translate3d(-4px, 0, 0);
+        }
+
+        40%, 60% {
+            transform: translate3d(4px, 0, 0);
+        }
+    }
+</style>
+<div class="card">
+    <div class="card-header">
+        <div class="card-title">Board-Game Streams Number Drawer</div>
+    </div>
+    <div class="card-body">
+        <div class="card-text">
+            <div class="form-group">
+                <label for="">Next Card Draw<span id="next_label"></span></label>
+                <input type="text" class="form-control" id="next" placeholder="Next Card Draw" readonly
+                style="font-size: 2rem;height: 4rem;">
+            </div>
+            <div class="form-group result-group">
+                <label for="">Current Card<span id="current_label"></span></label>
+                <div class="form-control title-box">
+                    <h1 id="title"><span class="title"></span></h1>
+                </div>
+            </div>
+            <div class="row">
+                <div class="form-group col-lg-9">
+                    <label for="">My Numbers</label>
+                    <div id="hand_up">
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="form-group col-lg-9">
+                    <label for="">Numbers</label>
+                    <div id="list">
+                    </div>
+                </div>
+                <div class="form-group col-lg-3">
+                    <label for="">Identifier Image</label>
+                    <div>
+                        <img id="input_id_image" src="https://robohash.org/default.png?set=set4"
+                            style="width:80px; height:80px;">
+                    </div>
+                    <div id="input_id_dice"></div>
+                </div>
+            </div>
+            <a href="javascript:createLink(this);" class="btn btn-success">Copy Link</a>
+            <a href="?" class="btn btn-primary">Create New</a>
+        </div>
+    </div>
+    <div class="card-footer">
+        <div class="form-group">
+            <input type="link" class="form-control" id="link" placeholder="Link" readonly>
+        </div>
+        <div class="row">
+            <div class="col-lg-4">
+                <p id="qrcode"></p>
+            </div>
+            <div class="col-lg-8">
+                <h5>Powered by Stellar Lumens Ledger.</h5>
+                <p>How to Play <a href="https://www.youtube.com/watch?v=py_rLOnLdz0" target="_blank">Watch Video</a></p>
+                <ul style="text-align:justify">
+                    <li>1~10 Card x 1</li>
+                    <li>11~19 Card x 2</li>
+                    <li>20~30 Card x 1</li>
+                    <li>Joker Card x 1</li>
+                </ul>
+                <div class="rule-columns">
+                    <div class="rule-column">
+                        <div class="rule-row"><small>Series </small>1 = <b>0</b></div>
+                        <div class="rule-row"><small>Series </small>2 = <b>1</b></div>
+                        <div class="rule-row"><small>Series </small>3 = <b>3</b></div>
+                        <div class="rule-row"><small>Series </small>4 = <b>5</b></div>
+                        <div class="rule-row"><small>Series </small>5 = <b>7</b></div>
+                        <div class="rule-row"><small>Series </small>6 = <b>9 or 3</b></div>
+                        <div class="rule-row"><small>Series </small>7 = <b>11</b></div>
+                        <div class="rule-row"><small>Series </small>8 = <b>15</b></div>
+                        <div class="rule-row"><small>Series </small>9 = <b>20</b></div>
+                        <div class="rule-row"><small>Series </small>10 = <b>25</b></div>
+                    </div>
+                    <div class="rule-column">
+                        <div class="rule-row"><small>Series </small>11 = <b>30</b></div>
+                        <div class="rule-row"><small>Series </small>12 = <b>35 or 20</b></div>
+                        <div class="rule-row"><small>Series </small>13 = <b>40</b></div>
+                        <div class="rule-row"><small>Series </small>14 = <b>50</b></div>
+                        <div class="rule-row"><small>Series </small>15 = <b>60</b></div>
+                        <div class="rule-row"><small>Series </small>16 = <b>70</b></div>
+                        <div class="rule-row"><small>Series </small>17 = <b>85 or 50</b></div>
+                        <div class="rule-row"><small>Series </small>18 = <b>100</b></div>
+                        <div class="rule-row"><small>Series </small>19 = <b>150</b></div>
+                        <div class="rule-row"><small>Series </small>20 = <b>300</b></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
