@@ -26,6 +26,11 @@ main {
     border-radius: 5px;
 }
 .nue {
+    background: #eeeeee;
+    box-shadow:  2px 2px 5px #cacaca, -2px -2px 5px #ffffff;
+    text-shadow: 1px 1px 0px #fff, 2px 2px 5px #cacaca, -2px -2px 5px #ffffff;
+}
+a.nue {
     @apply font-black;
     border-radius: 5px;
     background: #eeeeee;
@@ -33,7 +38,7 @@ main {
     box-shadow:  2px 2px 5px #cacaca, -2px -2px 5px #ffffff;
     text-shadow: 1px 1px 0px #fff, 2px 2px 5px #cacaca, -2px -2px 5px #ffffff;
 }
-.nue:hover {
+a.nue:hover {
     border-radius: 5px;
     background: linear-gradient(145deg, #d6d6d6, #ffffff);
     box-shadow:  2px 2px 5px #cacaca, 

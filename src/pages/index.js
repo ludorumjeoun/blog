@@ -31,13 +31,12 @@ class IndexPage extends React.Component {
           keywords={['ludorum.dev', `ludorum`, `blog`, 'developer']}
           title="Home"
         />
-        <BlogAuthorHeader/>
         <section className="pb-4 mb-4">
           <h2 className="block flex justify-center items-center">
-          <span className="text-base font-bold">최근 작성된 포스트</span>
+            <span className="text-base font-bold">최근 작성된 포스트</span>
           </h2>
-          {posts}
         </section>
+        {posts}
       </Layout>
     )
   }

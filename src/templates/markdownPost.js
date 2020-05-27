@@ -18,7 +18,6 @@ export default function Template({
         keywords={frontmatter.tags || []}
         title={frontmatter.title}
         />
-        <BlogAuthorHeader/>
         <article className="blog-post">
             <h2 className="block flex flex-col justify-center items-center">
               <FormattedDate date={frontmatter.date}/>

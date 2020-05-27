@@ -1,6 +1,8 @@
 import { graphql, useStaticQuery, Link } from "gatsby";
 import React, { useState } from "react";
 
+import dotDoge from "../images/dotdoge_v2.png";
+
 function Header() {
   const [isExpanded, toggleExpansion] = useState(false);
   const { site } = useStaticQuery(graphql`
@@ -16,13 +18,19 @@ function Header() {
   return (
     <header className="text-black">
       <div className="flex flex-wrap items-center justify-between max-w-4xl mt-2 py-2 mx-auto">
-        <Link to="/">
-          <h1 className="flex items-center no-underline nue py-1 px-10">
+        <Link className="nue" to="/">
+          <h1 className="flex items-center no-underline py-1 px-10">
             <span className="text-base tracking-tight">
               {site.siteMetadata.title}
             </span>
           </h1>
         </Link>
+        <img
+          alt="Cat and human sitting on a couch"
+          className="inline nue rounded-full"
+          style={{height:"2rem"}}
+          src={dotDoge}
+        /> 
 
         <button
           className="flex items-center block px-3 py-2 border nue rounded md:hidden"
