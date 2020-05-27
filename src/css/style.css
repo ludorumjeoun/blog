@@ -1,7 +1,7 @@
 /*! purgecss start ignore */
 @tailwind base;
 
-@import url('https://fonts.googleapis.com/css2?family=Gothic+A1:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Gothic+A1:wght@400;500;600;700;900&display=swap');
 
 @tailwind components;
 /*! purgecss end ignore */
@@ -20,6 +20,25 @@ html {
         @apply text-blue-800;
     }
 } 
+main {
+    background: #eee;
+    box-shadow: 2px 2px 5px #cacaca, -2px -2px 5px #fff;
+    border-radius: 5px;
+}
+.nue {
+    @apply font-black;
+    border-radius: 5px;
+    background: #eeeeee;
+    color: #bbb;
+    box-shadow:  2px 2px 5px #cacaca, -2px -2px 5px #ffffff;
+    text-shadow: 1px 1px 0px #fff, 2px 2px 5px #cacaca, -2px -2px 5px #ffffff;
+}
+.nue:hover {
+    border-radius: 5px;
+    background: linear-gradient(145deg, #d6d6d6, #ffffff);
+    box-shadow:  2px 2px 5px #cacaca, 
+                -2px -2px 5px #ffffff;
+}
 
 /* purgecss start ignore */
 /* Markdown Styles */
