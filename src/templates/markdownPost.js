@@ -7,6 +7,8 @@ import SEO from "../components/seo";
 import BlogAuthorHeader from "../components/blog-author-header"
 import FormattedDate from "../components/formatted_date"
 
+import 'gatsby-remark-vscode/styles.css'
+
 export default function Template({
   data, // this prop will be injected by the GraphQL query below.
 }) {
@@ -19,9 +21,10 @@ export default function Template({
         title={frontmatter.title}
         />
         <article className="blog-post">
-            <h2 className="block flex flex-col justify-center items-center">
+            <div className="block flex flex-col justify-center items-center pb-3 mb-4 border-b">
+              <h1 className="text-base text-gray-800">{frontmatter.title}</h1>
               <FormattedDate date={frontmatter.date}/>
-            </h2>
+            </div>
             <div
               className="blog-post-content markdown"
               dangerouslySetInnerHTML={{ __html: html }}

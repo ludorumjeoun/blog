@@ -16,9 +16,9 @@ function Header() {
   `);
 
   return (
-    <header className="text-black">
-      <div className="flex flex-wrap items-center justify-between max-w-4xl mt-2 py-2 mx-auto">
-        <Link className="nue" to="/">
+    <header className="text-gray-500 bg-gray-100 shadow-sm py-2 sticky top-0 z-10">
+      <div className="flex flex-wrap items-center justify-between max-w-4xl mx-auto">
+        <Link className="" to="/">
           <h1 className="flex items-center no-underline py-1 px-10">
             <span className="text-base tracking-tight">
               {site.siteMetadata.title}
@@ -27,13 +27,13 @@ function Header() {
         </Link>
         <img
           alt="Cat and human sitting on a couch"
-          className="inline nue rounded-full"
+          className="inline rounded-full"
           style={{height:"2rem"}}
           src={dotDoge}
         /> 
 
         <button
-          className="flex items-center block px-3 py-2 border nue rounded md:hidden"
+          className="flex items-center block px-3 py-2 border rounded md:hidden"
           onClick={() => toggleExpansion(!isExpanded)}
         >
           <svg
@@ -62,7 +62,7 @@ function Header() {
             }
           ].map((link) => (
             <Link
-              className="block mt-4 px-2 py-1 no-underline md:inline-block md:mt-0 md:ml-6 nue"
+              className="block mt-4 px-2 py-1 no-underline md:inline-block md:mt-0 md:ml-6 "
               key={link.title}
               to={link.route}
             >
