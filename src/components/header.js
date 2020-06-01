@@ -17,9 +17,9 @@ function Header() {
 
   return (
     <header className="text-gray-500 bg-gray-100 shadow-sm py-2 sticky top-0 z-10">
-      <div className="flex flex-wrap items-center justify-between max-w-4xl mx-auto">
+      <div className="flex flex-wrap items-center justify-between max-w-4xl mx-auto px-4">
         <Link className="" to="/">
-          <h1 className="flex items-center no-underline py-1 px-10">
+          <h1 className="flex items-center no-underline py-1">
             <span className="text-base tracking-tight">
               {site.siteMetadata.title}
             </span>
