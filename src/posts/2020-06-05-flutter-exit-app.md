@@ -1,6 +1,7 @@
 ---
 title: Flutter, 앱 종료하기 구현.
-slug:/blog/flutter-exit-app
+date: 2020-06-05
+slug: /blog/flutter-exit-app
 tags: chat, flutter, dev
 ---
 
